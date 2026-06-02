@@ -147,42 +147,115 @@ with tab2:
     *   **Actionable Strategic Takeaway:** Clusters of large dots at high markdown rates under 'High Inventory Pressure' indicate reactive discounting to clear out excess stock. A healthier approach would use smaller, proactive markdowns earlier in the product lifecycle to protect margins.
     """)
 
-
 # =====================================================================
 # DASHBOARD TAB 3: MACHINE LEARNING DEMAND FORECAST
 # =====================================================================
 with tab3:
     st.subheader("🔮 Predictive Margin & Scenario Optimization Optimizer")
-    st.markdown("Test pricing changes, discount limits, and inventory variables to see their impact on sales volume before changing production values.")
-    
+    st.markdown(
+        "Test pricing changes, discount limits, and inventory variables "
+        "to see their impact on sales volume before changing production values."
+    )
+
     model_path = os.path.join("models", "demand_predictor.joblib")
-    
-    if not os.path.exists(model_path):
-        st.error(f"⚠️ Production model artifact asset could not be initialized at `{model_path}`. Run `train_model.py` first.")
-    else:
-        # Load serialized pipeline asset
-        model_pipeline = joblib.load(model_path)
-        
-        # Scenario Parameter Form Input Interface
+
+    # -------------------------------
+    # SAFE MODEL LOADING FUNCTION
+    # -------------------------------
+    def get_model():
+
+        # Ensure folder exists
+        os.makedirs("models", exist_ok=True)
+
+        # If model does not exist → train automatically
+        if not os.path.exists(model_path):
+            st.warning("⚠️ Model not found. Training model automatically...")
+
+            import subprocess
+
+            result = subprocess.run(
+                ["python", "scripts/train_model.py"],
+                capture_output=True,
+                text=True
+            )
+
+            if result.returncode != 0:
+                st.error("❌ Model training failed. Check train_model.py logs.")
+                st.stop()
+
+        # Load trained model
+        return joblib.load(model_path)
+
+    # -------------------------------
+    # LOAD MODEL
+    # -------------------------------
+    try:
+        model_pipeline = get_model()
+        model_ready = True
+    except Exception as e:
+        st.error(f"❌ Model initialization error: {str(e)}")
+        model_ready = False
+
+    # -------------------------------
+    # UI ONLY IF MODEL IS READY
+    # -------------------------------
+    if model_ready:
+
         with st.form("scenario_optimization_form"):
-            form_col1, form_col2 = st.columns(2)
-            
-            with form_col1:
-                ui_category = st.selectbox("Product Catalog Category Target", options=list(df['category'].unique()))
-                ui_brand = st.selectbox("Brand Premium Classification", options=list(df['brand_type'].unique()))
-                ui_base_price = st.slider("Product Base Retail Pricing (INR)", min_value=float(df['base_price'].min()), max_value=float(df['base_price'].max()), value=float(df['base_price'].median()))
-                ui_discount = st.slider("Target Markdown Multiplier Selection (%)", min_value=0.0, max_value=90.0, value=15.0)
-                
-            with form_col2:
-                ui_age = st.number_input("Target Core Customer Demography Age", min_value=18, max_value=90, value=28)
-                ui_comp = st.radio("Localized Market Competition Density", options=['Low', 'Medium', 'High'], index=1)
-                ui_pressure = st.radio("Logistics Center Inventory Stock Pressure", options=['Low', 'Medium', 'High'], index=0)
-                
-            # Form submission button
+            col1, col2 = st.columns(2)
+
+            with col1:
+                ui_category = st.selectbox(
+                    "Product Catalog Category Target",
+                    options=list(df['category'].unique())
+                )
+
+                ui_brand = st.selectbox(
+                    "Brand Premium Classification",
+                    options=list(df['brand_type'].unique())
+                )
+
+                ui_base_price = st.slider(
+                    "Product Base Retail Pricing (INR)",
+                    min_value=float(df['base_price'].min()),
+                    max_value=float(df['base_price'].max()),
+                    value=float(df['base_price'].median())
+                )
+
+                ui_discount = st.slider(
+                    "Target Markdown Multiplier Selection (%)",
+                    min_value=0.0,
+                    max_value=90.0,
+                    value=15.0
+                )
+
+            with col2:
+                ui_age = st.number_input(
+                    "Target Core Customer Demography Age",
+                    min_value=18,
+                    max_value=90,
+                    value=28
+                )
+
+                ui_comp = st.radio(
+                    "Localized Market Competition Density",
+                    options=['Low', 'Medium', 'High'],
+                    index=1
+                )
+
+                ui_pressure = st.radio(
+                    "Logistics Center Inventory Stock Pressure",
+                    options=['Low', 'Medium', 'High'],
+                    index=0
+                )
+
             submit_scenario = st.form_submit_button("Run Predictive Strategy Diagnostics")
-            
+
+        # -------------------------------
+        # PREDICTION ENGINE
+        # -------------------------------
         if submit_scenario:
-            # Construct exact inference schema matching training framework
+
             inference_payload = pd.DataFrame([{
                 'base_price': ui_base_price,
                 'discount_percent': ui_discount,
@@ -192,25 +265,32 @@ with tab3:
                 'competition_intensity': ui_comp,
                 'inventory_pressure': ui_pressure
             }])
-            
-            # Run model pipeline inference execution
+
             predicted_volume = model_pipeline.predict(inference_payload)[0]
             rounded_volume = int(np.round(predicted_volume))
-            
-            # Calculate financial parameters
+
             expected_unit_price = ui_base_price * (1 - (ui_discount / 100.0))
             projected_gross_yield = expected_unit_price * rounded_volume
-            
-            # Display Prediction Results
-            res_col1, res_col2 = st.columns(2)
-            res_col1.metric(label="🎯 Predicted Sales Velocity Target", value=f"{rounded_volume} Units")
-            res_col2.metric(label="💰 Projected Gross Pipeline Revenue Yield", value=f"₹{projected_gross_yield:,.2f}")
-            
+
+            colA, colB = st.columns(2)
+
+            colA.metric(
+                "🎯 Predicted Sales Velocity",
+                f"{rounded_volume} Units"
+            )
+
+            colB.metric(
+                "💰 Projected Revenue",
+                f"₹{projected_gross_yield:,.2f}"
+            )
+
             st.success("✨ Optimization Diagnostics Completed Successfully.")
-            
+
     st.markdown("---")
+
     st.info("""
     **💡 Predictive Analytics Portfolio Context:**
-    *   **Behind the Model:** This forecasting tool uses an integrated Scikit-Learn pipeline. Categorical inputs are processed via One-Hot Encoding before generating predictions through an ensemble Random Forest Regressor.
-    *   **Business Impact Statement:** Instead of looking at past performance, this feature acts as an interactive tool for inventory planners. It helps teams test different promotional strategies and forecast sales volumes before launching campaigns.
+    * This forecasting tool uses a Scikit-Learn pipeline with encoded categorical features.
+    * It enables scenario testing before pricing or inventory decisions are made.
+    * Helps optimize margins and demand forecasting in real time.
     """)
