@@ -1,0 +1,9 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+.streamlit/
+.ipynb_checkpoints/
+.env
+*.pkl
+*.joblib
